@@ -4,8 +4,6 @@ import random
 import string
 import re
 import os
-import subprocess
-import signal
 
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -13,45 +11,6 @@ from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
 import time
-
-# -- FFmpeg Recording Setup --
-RECORDING_FILE = "demo_video.mp4"
-ffmpeg_proc = None
-
-def start_recording():
-    global ffmpeg_proc
-    try:
-        import pygetwindow as gw
-        import pyautogui
-        time.sleep(2)
-        screen_w, screen_h = pyautogui.size()
-        chrome_win = gw.getWindowsWithTitle("Chrome")[0]
-        x = max(0, chrome_win.left)
-        y = max(0, chrome_win.top)
-        w = min(chrome_win.width, screen_w - x)
-        h = min(chrome_win.height, screen_h - y)
-    except Exception:
-        screen_w, screen_h = 1920, 1080
-        x, y, w, h = 0, 0, screen_w, screen_h
-
-    with open("ffmpeg_log.txt", "w") as log:
-        ffmpeg_proc = subprocess.Popen(
-            ["ffmpeg", "-f", "gdigrab", "-framerate", "10",
-             "-offset_x", str(x), "-offset_y", str(y),
-             "-video_size", f"{w}x{h}", "-i", "desktop",
-             "-c:v", "libx264", "-preset", "ultrafast",
-             "-y", RECORDING_FILE],
-            stdout=log, stderr=subprocess.STDOUT
-        )
-    print(f"Recording started -> {RECORDING_FILE}")
-
-def stop_recording():
-    global ffmpeg_proc
-    if ffmpeg_proc:
-        ffmpeg_proc.terminate()
-        ffmpeg_proc.wait()
-        ffmpeg_proc = None
-        print("Recording stopped.")
 
 # creates a temp email inbox using mail.tm api
 def create_temp_email():
@@ -109,8 +68,6 @@ driver=webdriver.Chrome(service=Service(ChromeDriverManager().install()))
 time.sleep(3)
 #Maximizing the screen. 
 driver.maximize_window()
-#Start recording the demo
-start_recording()
 #Opening website
 url="https://authorized-partner.vercel.app/"
 driver.get(url)
@@ -163,7 +120,6 @@ otp_value = get_otp_from_inbox(api_token, api_url)
 
 if otp_value is None:
     print("could not get OTP code within 60 seconds")
-    stop_recording()
     driver.quit()
     exit()
 
@@ -318,5 +274,4 @@ if "Personal Information" in body_text and "Agency Details" in body_text:
 else:
     print("Signup have failed!")
 time.sleep(2)
-stop_recording()
 driver.quit()
