@@ -1,6 +1,64 @@
+# importing libraries for api call and random generation
+import requests
+import random
+import string
+import re
+
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 import time
+
+# creates a temp email inbox using mail.tm api
+def create_temp_email():
+    base_url = "https://api.mail.tm"
+    random_numbers = ''.join(random.choices(string.digits, k=8))
+    email = f"test{random_numbers}@web-library.net"
+    password = "Temp@123"
+    
+    # create account on mail.tm
+    response = requests.post(f"{base_url}/accounts", json={
+        "address": email,
+        "password": password
+    })
+    
+    # get token so we can access inbox later
+    token_response = requests.post(f"{base_url}/token", json={
+        "address": email,
+        "password": password
+    })
+    token = token_response.json()["token"]
+    return email, token, base_url
+
+# checking inbox until we get the otp code
+def get_otp_from_inbox(token, base_url, wait_time=60):
+    headers = {"Authorization": f"Bearer {token}"}
+    deadline = time.time() + wait_time
+    
+    while time.time() < deadline:
+        response = requests.get(f"{base_url}/messages", headers=headers)
+        messages = response.json().get("hydra:member", [])
+        
+        if messages:
+            latest_msg_id = messages[-1]["id"]
+            email_data = requests.get(f"{base_url}/messages/{latest_msg_id}", headers=headers).json()
+            
+            # look for 6 digit number in email text
+            email_text = email_data.get("text", "") or email_data.get("html", "")
+            match = re.search(r'\b(\d{6})\b', email_text)
+            if match:
+                return match.group(1)
+        
+        time.sleep(3)
+    
+    return None
+
+# create a fresh email and random phone number every time we run
+temp_email, api_token, api_url = create_temp_email()
+random_phone = f"98{random.randint(10000000, 99999999)}"
+
+print(f"Using email: {temp_email}")
+print(f"Using phone: {random_phone}")
+
 # Using chrome browser.
 driver=webdriver.Chrome()
 time.sleep(2)
@@ -30,16 +88,16 @@ time.sleep(2)
 last_name=driver.find_element(By.NAME,"lastName")
 last_name.send_keys("Limbu")
 time.sleep(2)
-#fill email address
+#fill email address (now using dynamic email instead of hardcoded one)
 email_address=driver.find_element(By.NAME,"email")
-email_address.send_keys("sss@yopmail.com")
+email_address.send_keys(temp_email)
 time.sleep(2)
 #find phone number country code
 #number_code=driver.find_element(By.XPATH,"/html/body/div[4]/div[4]/div/div/div/div[2]/form/div[2]/div[2]/div/div/div/button/svg")
 #line 31 and 32 code is not applicable because the website doesnot contains proper information about the country phone number code.
-#fill phone number
+#fill phone number (now using random phone number)
 phone_number=driver.find_element(By.NAME,"phoneNumber")
-phone_number.send_keys("9817340506")
+phone_number.send_keys(random_phone)
 time.sleep(2)
 #Fill password
 password=driver.find_element(By.NAME,"password")
@@ -52,14 +110,25 @@ time.sleep(2)
 # Click Next Button
 next_button=driver.find_element(By.XPATH,"/html/body/div[4]/div[4]/div/div/div/div[2]/form/div[4]/button")
 next_button.click()
-time.sleep(2)
-#fill OPT code but the OPT changes everytime
-otp_code=driver.find_element(By.XPATH,"/html/body/div[4]/div[4]/div/div/div/div[2]/div/form/div[1]/div[2]/input")
-otp_code.send_keys("129052")
+
+# now we wait for the otp email to arrive and fetch it automatically
+print("Waiting for OTP email...")
+otp_value = get_otp_from_inbox(api_token, api_url)
+
+if otp_value is None:
+    print("Could not get OTP code within 60 seconds")
+    driver.quit()
+    exit()
+
+print(f"OTP received: {otp_value}")
+
+#fill OPT code (now it is fetched automatically instead of hardcoded)
+otp_input=driver.find_element(By.XPATH,"/html/body/div[4]/div[4]/div/div/div/div[2]/div/form/div[1]/div[2]/input")
+otp_input.send_keys(otp_value)
 #click verify code button
 verify_button=driver.find_element(By.XPATH,"/html/body/div[4]/div[4]/div/div/div/div[2]/div/form/div[2]/button")
 verify_button.click()
-time.sleep(60)
+time.sleep(5)
 #fill agency name
 agency_name=driver.find_element(By.XPATH,"/html/body/div[4]/div[4]/div/div/div/div[2]/form/div[1]/div[1]/label")
 agency_name.send_keys("No_Agency")
